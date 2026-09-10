@@ -57,7 +57,11 @@ def extract_audio(video_path: Path, out_dir: Path) -> Path:
         "-f", "wav",
         str(audio_path),
     ]
-    subprocess.run(cmd, capture_output=True, check=True)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"   ❌ ffmpeg ошибка (exit {e.returncode}): {e.stderr[-300:] if e.stderr else '(нет диагностики)'}")
+        raise
 
     size_mb = audio_path.stat().st_size / (1024 * 1024)
     print(f"   ✓ Аудио: {size_mb:.1f} МБ → {audio_path.name}")
@@ -127,37 +131,45 @@ def parse_timeline(shapes_svg_path: Path) -> list[tuple[float, int, str]]:
         r'(?:class="slide"|class=\'slide\')[^>]*in="([\d.]+)"',
     )
 
-    for m in RE_IMG.finditer(text):
-        t = float(m.group(1))
-        href = m.group(2)
-        num = int(m.group(3))
-        entries.append((t, num, href))
+    # ВАЖНО: используем XML-парсер как основной путь (он не зависит от
+    # порядка атрибутов в <image ...>), а regex — только для быстрой эвристики.
+    entries = _parse_timeline_xml(text)
 
-    for m in RE_IMG_ALT.finditer(text):
-        href = m.group(1)
-        num = int(m.group(2))
-        t = float(m.group(3))
-        entries.append((t, num, href))
-
-    # Fallback: XML parser
     if not entries:
-        try:
-            ns_svg = "http://www.w3.org/2000/svg"
-            ns_xlink = "http://www.w3.org/1999/xlink"
-            root = ET.fromstring(text.encode() if isinstance(text, str) else text)
-            for img in root.iter(f"{{{ns_svg}}}image"):
-                href = (img.get(f"{{{ns_xlink}}}href") or img.get("href") or
-                        img.get(f"{{{ns_xlink}}}href"))
-                in_val = img.get("in") or img.get("data-in")
-                if not href or not in_val:
-                    continue
-                m = re.search(r"slide(\d+)\.svg", href)
-                if m:
-                    entries.append((float(in_val), int(m.group(1)), href))
-        except ET.ParseError:
-            pass
+        for m in RE_IMG.finditer(text):
+            t = float(m.group(1))
+            href = m.group(2)
+            num = int(m.group(3))
+            entries.append((t, num, href))
+
+        for m in RE_IMG_ALT.finditer(text):
+            href = m.group(1)
+            num = int(m.group(2))
+            t = float(m.group(3))
+            entries.append((t, num, href))
 
     entries.sort(key=lambda x: (x[0], x[1]))
+    return entries
+
+
+def _parse_timeline_xml(text: str) -> list[tuple[float, int, str]]:
+    """XML-парсер таймлайна: не зависит от порядка атрибутов в <image>."""
+    entries = []
+    try:
+        root = ET.fromstring(text.encode() if isinstance(text, str) else text)
+        ns_svg = "http://www.w3.org/2000/svg"
+        ns_xlink = "http://www.w3.org/1999/xlink"
+        for img in root.iter(f"{{{ns_svg}}}image"):
+            href = (img.get(f"{{{ns_xlink}}}href") or img.get("href") or
+                    img.get(f"{{{ns_xlink}}}href"))
+            in_val = img.get("in") or img.get("data-in")
+            if not href or not in_val:
+                continue
+            m = re.search(r"slide(\d+)\.svg", href)
+            if m:
+                entries.append((float(in_val), int(m.group(1)), href))
+    except ET.ParseError:
+        return []
     return entries
 
 

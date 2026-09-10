@@ -149,6 +149,8 @@ def format_chunk_for_llm(chunk: SlideChunk, slide_num_global: int, total: int) -
     t_end = f"{int(chunk.end_sec // 60):02d}:{int(chunk.end_sec % 60):02d}"
 
     lines.append(f"=== СЛАЙД {chunk.slide_num} ({t_start}–{t_end}, {chunk.duration_min:.1f} мин) [{slide_num_global}/{total}] ===")
+    if chunk.png_path:
+        lines.append(f"[Файл слайда: {chunk.png_path.name}]")
     if chunk.slide_text:
         lines.append(f"ТЕКСТ СЛАЙДА:")
         lines.append(chunk.slide_text)

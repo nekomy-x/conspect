@@ -30,7 +30,7 @@ class Config:
     llm_api_key: str = field(default_factory=lambda: _get("LLM_API_KEY"))
     llm_base_url: str = field(default_factory=lambda: _get("LLM_BASE_URL", "https://api.openai.com/v1"))
     llm_model: str = field(default_factory=lambda: _get("LLM_MODEL", "gpt-4o"))
-    llm_max_tokens: int = field(default_factory=lambda: int(_get("LLM_MAX_TOKENS", "4096")))
+    llm_max_tokens: int = field(default_factory=lambda: int(_get("LLM_MAX_TOKENS", "8192")))
 
     # --- Whisper ---
     whisper_model: str = field(default_factory=lambda: _get("WHISPER_MODEL", "medium"))

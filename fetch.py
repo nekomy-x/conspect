@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -68,25 +69,39 @@ def _session(cookies: Optional[dict] = None) -> requests.Session:
     return s
 
 
-def _get(sess: requests.Session, url: str, out: Path, desc: str = "") -> bool:
-    """Скачивает файл с прогресс-баром и кешем. Возвращает True если скачан."""
+def _get(sess: requests.Session, url: str, out: Path, desc: str = "",
+         max_retries: int = 3) -> bool:
+    """Скачивает файл с прогресс-баром, кешем и повторными попытками.
+    Возвращает True если скачан.
+    """
     if out.exists() and out.stat().st_size > 0:
         return False  # уже скачано
 
-    resp = sess.get(url, stream=True, timeout=120)
-    resp.raise_for_status()
-    total = int(resp.headers.get("content-length", 0))
     out.parent.mkdir(parents=True, exist_ok=True)
+    last_err = None
+    for attempt in range(max_retries):
+        try:
+            resp = sess.get(url, stream=True, timeout=120)
+            resp.raise_for_status()
+            total = int(resp.headers.get("content-length", 0))
 
-    label = desc or out.name
-    with open(out, "wb") as f, tqdm(
-        total=total, unit="B", unit_scale=True, unit_divisor=1024,
-        desc=label, leave=False,
-    ) as pbar:
-        for chunk in resp.iter_content(chunk_size=65536):
-            f.write(chunk)
-            pbar.update(len(chunk))
-    return True
+            label = desc or out.name
+            with open(out, "wb") as f, tqdm(
+                total=total, unit="B", unit_scale=True, unit_divisor=1024,
+                desc=label, leave=False,
+            ) as pbar:
+                for chunk in resp.iter_content(chunk_size=65536):
+                    f.write(chunk)
+                    pbar.update(len(chunk))
+            return True
+        except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as e:
+            last_err = e
+            if attempt < max_retries - 1:
+                import time
+                wait = 2 ** attempt
+                print(f"   ⚠ Ошибка скачивания {desc or url} (попытка {attempt + 1}/{max_retries}): {e}")
+                time.sleep(wait)
+    raise last_err
 
 
 # ── Парсинг shapes.svg ──────────────────────────────────────────────────────
@@ -187,17 +202,33 @@ class RecordingMeta:
 
 
 def parse_metadata(xml_text: str) -> RecordingMeta:
-    """Парсит metadata.xml → RecordingMeta."""
+    """Парсит metadata.xml → RecordingMeta.
+    Возвращает пустой RecordingMeta если текст не XML (HTML-ошибка, пустота).
+    """
     meta = RecordingMeta()
+    # Валидация: metadata.xml должен начинаться с XML-тега или <?xml
+    stripped = xml_text.lstrip()
+    if not stripped.startswith(("<?xml", "<recording")):
+        # Скорее всего HTML-ошибка (Cloudflare, 404-страница и т. д.)
+        print(f"   ⚠ metadata.xml не похож на XML (первые 80 символов): {stripped[:80]!r}")
+        return meta
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError:
         return meta
 
     meta.record_id = (root.findtext("id") or "").strip()
-    meta.participants = int(root.findtext("participants") or "0")
-    meta.start_time = int(root.findtext("start_time") or "0")
-    meta.end_time = int(root.findtext("end_time") or "0")
+
+    # Числовые поля могут содержать мусор ("N/A", пустоту) — аккуратно парсим
+    def _safe_int(text: str) -> int:
+        try:
+            return int(str(text).strip())
+        except (ValueError, TypeError):
+            return 0
+
+    meta.participants = _safe_int(root.findtext("participants") or "0")
+    meta.start_time = _safe_int(root.findtext("start_time") or "0")
+    meta.end_time = _safe_int(root.findtext("end_time") or "0")
     meta.duration_ms = meta.end_time - meta.start_time if meta.end_time > meta.start_time else 0
 
     # Название встречи

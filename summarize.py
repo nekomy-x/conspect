@@ -131,6 +131,11 @@ def generate_notes(
         print("   ⚠ LLM_API_KEY не задан — генерирую конспект без LLM (только структура)")
         return _generate_notes_without_llm(aligned)
 
+    # Пустой таймлайн (нет слайдов) — LLM нечего конспектировать, не даём галлюцинировать
+    if not aligned.chunks:
+        print("   ⚠ Нет слайдов для конспекта — возвращаю заглушку")
+        return _generate_notes_without_llm(aligned)
+
     client = OpenAI(api_key=cfg.llm_api_key, base_url=cfg.llm_base_url)
     system_prompt = _load_system_prompt()
 
