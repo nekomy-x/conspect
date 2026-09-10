@@ -108,7 +108,11 @@ def parse_timeline(shapes_svg_path: Path) -> list[tuple[float, int, str]]:
     """
     Парсит shapes.svg и возвращает таймлайн: [(start_sec, slide_num, href)].
     Берём только image-элементы со class="slide".
+    Возвращает пустой список, если файла нет (например, для локальных видео).
     """
+    if not shapes_svg_path.exists():
+        print(f"   ⚠ shapes.svg не найден: {shapes_svg_path.name} — таймлайн пуст")
+        return []
     text = shapes_svg_path.read_text(encoding="utf-8")
     entries = []
 

@@ -10,6 +10,7 @@ bbb-lectures: Пайплайн «запись BBB → красивый конс�
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
 import subprocess
@@ -77,7 +78,9 @@ def process_lecture(
         if not video_path.exists():
             print(f"❌ Файл не найден: {source}")
             return None
-        record_id = video_path.stem[:40]
+        # recordId для локального файла: уникальный (хеш от полного имени),
+        # чтобы два файла с одинаковым префиксом не делили base_dir/кэш.
+        record_id = "local-" + hashlib.sha1(video_path.name.encode("utf-8")).hexdigest()[:12]
         base_dir = cfg.tmp_dir / record_id
         base_dir.mkdir(parents=True, exist_ok=True)
         duration = get_audio_duration(video_path)
@@ -137,8 +140,14 @@ def process_lecture(
     )
 
     # Транскрибируем (если есть аудио)
+    # Кэш учитывает модель и язык: смена WHISPER_MODEL не даёт устаревший транскрипт
     segments = []
-    transcript_path = fetched.base_dir / "transcript.json"
+    transcript_path = fetched.base_dir / f"transcript-{cfg.whisper_model}-{cfg.whisper_language}.json"
+    # Миграция со старого имени файла (transcript.json), если модель/язык совпадают
+    legacy_path = fetched.base_dir / "transcript.json"
+    if (not transcript_path.exists() and legacy_path.exists()
+            and cfg.whisper_model == "tiny" and cfg.whisper_language == "ru"):
+        legacy_path.rename(transcript_path)
     if extracted.audio_path and extracted.audio_path.exists():
         if transcript_path.exists() and transcript_path.stat().st_size > 0:
             print(f"   📥 Загружаю кешированный транскрипт: {transcript_path.name}")
@@ -189,6 +198,8 @@ def process_lecture(
 
 def process_queue(cfg: Config, once: bool = False) -> None:
     """Обрабатывает ссылки из queue.txt."""
+    from fetch import extract_record_id
+
     queue_file = cfg.queue_file
     if not queue_file.exists():
         print(f"⚠ Файл очереди не найден: {queue_file}")
@@ -198,19 +209,27 @@ def process_queue(cfg: Config, once: bool = False) -> None:
     processed_ids = load_processed_ids(cfg)
     while True:
         lines = queue_file.read_text(encoding="utf-8").splitlines()
-        new_urls = [
-            line.strip() for line in lines
-            if line.strip() and not line.startswith("#") and line.strip() not in processed_ids
-        ]
+        new_urls = []
+        for raw in lines:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            # Пропускаем уже обработанные: сравниваем recordId, а не URL целиком
+            try:
+                rid = extract_record_id(line)
+                if rid in processed_ids:
+                    continue
+            except ValueError:
+                pass  # локальный файл — обрабатываем как есть
+            new_urls.append(line)
 
         if not new_urls:
             if once:
                 print("✅ Очередь пуста, все ссылки обработаны.")
                 return
-            if not once:
-                print(f"⏳ Новых ссылок нет. Проверю через 60 сек...")
-                time.sleep(60)
-                continue
+            print(f"⏳ Новых ссылок нет. Проверю через 60 сек...")
+            time.sleep(60)
+            continue
 
         for url in new_urls[:10]:  # За раз — максимум 10
             print(f"\n{'='*60}")
@@ -221,21 +240,38 @@ def process_queue(cfg: Config, once: bool = False) -> None:
                 if result:
                     # Помечаем в queue.txt как обработанную
                     mark_queue_url_processed(queue_file, url)
-                    processed_ids.add(url)
             except Exception as e:
                 print(f"❌ Ошибка: {e}")
                 import traceback
                 traceback.print_exc()
+                # Помечаем как битую, чтобы демон не зацикливался на ней
+                mark_queue_url_processed(queue_file, url, failed=True)
 
         if once:
             return
 
 
-def mark_queue_url_processed(queue_file: Path, url: str) -> None:
-    """Добавляет # к обработанной ссылке в queue.txt."""
-    content = queue_file.read_text(encoding="utf-8")
-    content = content.replace(url, f"# {url}")
-    queue_file.write_text(content, encoding="utf-8")
+def mark_queue_url_processed(queue_file: Path, url: str, failed: bool = False) -> None:
+    """
+    Помечает ссылку в queue.txt:
+    - успех:   "# <url>"
+    - ошибка:  "# FAILED: <url>" (не обрабатывается повторно, но видна пользователю)
+    Работает построчно (не str.replace), чтобы не испортить похожие ссылки.
+    """
+    marker = "# FAILED: " if failed else "# "
+    lines = queue_file.read_text(encoding="utf-8").splitlines()
+    changed = False
+    for i, raw in enumerate(lines):
+        if raw.strip() == url:
+            lines[i] = f"{marker}{url}"
+            changed = True
+            break
+    if changed:
+        queue_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    elif failed:
+        # Ссылка пропала из файла — просто добавим в конец
+        with queue_file.open("a", encoding="utf-8") as f:
+            f.write(f"{marker}{url}\n")
 
 
 # ── processed.json ───────────────────────────────────────────────────────────
@@ -355,9 +391,13 @@ def main():
 
     # --force: убираем из processed
     if args.force:
+        from fetch import extract_record_id
         try:
-            from fetch import extract_record_id
             rid = extract_record_id(args.source)
+        except ValueError:
+            print(f"ℹ  --force: локальный файл, пропускаю очистку processed.json")
+            rid = None
+        if rid:
             data = {}
             if cfg.processed_file.exists():
                 try:
@@ -369,12 +409,14 @@ def main():
                 json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8",
             )
             print(f"ℹ  {rid[:16]} убран из processed.json (--force)")
-        except Exception:
-            pass
 
     if args.fetch_only:
         from fetch import extract_record_id, fetch_recording
-        rid = extract_record_id(args.source)
+        try:
+            rid = extract_record_id(args.source)
+        except ValueError as e:
+            print(f"❌ {e}")
+            sys.exit(1)
         fetch_recording(rid, cfg.tmp_dir, download_video=cfg.download_video, cookies=_get_cookies(cfg))
     else:
         process_lecture(

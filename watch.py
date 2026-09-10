@@ -38,11 +38,13 @@ def parse_args() -> argparse.Namespace:
 
 def get_new_urls(cfg) -> list[str]:
     """Возвращает новые необработанные ссылки из queue.txt."""
+    from fetch import extract_record_id
+    from main import load_processed_ids
+
     queue_file = cfg.queue_file
     if not queue_file.exists():
         return []
 
-    from main import load_processed_ids
     processed = load_processed_ids(cfg)
 
     urls = []
@@ -50,17 +52,37 @@ def get_new_urls(cfg) -> list[str]:
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        if line not in processed:
-            urls.append(line)
+        # Сравниваем recordId (а не URL целиком), как в main.process_queue
+        try:
+            rid = extract_record_id(line)
+            if rid in processed:
+                continue
+        except ValueError:
+            pass  # локальный файл — обрабатываем как есть
+        urls.append(line)
     return urls
 
 
-def mark_processed(queue_file: Path, url: str) -> None:
-    """Помечает URL как обработанный в queue.txt (добавляет #)."""
-    content = queue_file.read_text(encoding="utf-8")
-    if url in content:
-        content = content.replace(url, f"# {url}")
-        queue_file.write_text(content, encoding="utf-8")
+def mark_processed(queue_file: Path, url: str, failed: bool = False) -> None:
+    """
+    Помечает URL в queue.txt построчно:
+    - успех:   "# <url>"
+    - ошибка:  "# FAILED: <url>"
+    str.replace не используется — чтобы не испортить похожие ссылки.
+    """
+    marker = "# FAILED: " if failed else "# "
+    lines = queue_file.read_text(encoding="utf-8").splitlines()
+    changed = False
+    for i, raw in enumerate(lines):
+        if raw.strip() == url:
+            lines[i] = f"{marker}{url}"
+            changed = True
+            break
+    if changed:
+        queue_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    elif failed:
+        with queue_file.open("a", encoding="utf-8") as f:
+            f.write(f"{marker}{url}\n")
 
 
 def run(once: bool = False, interval: int = 60) -> None:

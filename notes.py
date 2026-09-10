@@ -52,6 +52,11 @@ def fix_typography(text: str) -> str:
             out_lines.append(line)              # список/таблица/цитата — не трогаем
             continue
 
+        # Пропускаем строки с HTML-тегами (атрибуты содержат кавычки, которые мы не трогаем)
+        if re.search(r'<[a-z][^>]*>', line, re.IGNORECASE):
+            out_lines.append(line)
+            continue
+
         # ── типографика в прозе ──
         # "текст" → «текст»
         line = re.sub(r'"([^"\n]{1,300})"', lambda m: f'«{m.group(1)}»', line)
@@ -104,12 +109,10 @@ def copy_slides_to_assets(
 
 # ── Подстановка путей к слайдам в конспекте ─────────────────────────────────
 
-def fix_slide_references(text: str, slide_map: dict[int, str], format: str = "vault") -> str:
+def fix_slide_references(text: str, slide_map: dict[int, str]) -> str:
     """
-    Заменяет ссылки на слайды в Markdown на относительные пути.
-    Форматы:
-    - vault: Obsidian-style `![[slide_XXX.png]]` или `![[slides/slide_XXX.png]]`
-    - docs: MkDocs-style `![Слайд N](../assets/...)`
+    Заменяет ссылки на слайды в Markdown на относительные пути
+    (slide_map задаёт пути для конкретного целевого формата).
     """
     for slide_num, rel_path in slide_map.items():
         # Obsidian-style: ![[slide_NNN.png]] или ![[slide_NNN|caption]]
@@ -196,8 +199,13 @@ def save_notes(
     slide_map = copy_slides_to_assets(aligned, vault_assets, docs_assets)
 
     # 2. Готовим содержимое
+    # Два варианта путей к слайдам:
+    #   docs:  ../assets/<id>/slide_NNN.png  (относительно docs/конспекты/)
+    #   vault: assets/<id>/slide_NNN.png     (относительно vault/, без ../)
+    vault_map = {n: p[3:] if p.startswith("../") else p for n, p in slide_map.items()}
+
     # Исправляем ссылки на слайды в формате docs (относительные пути)
-    content = fix_slide_references(llm_content, slide_map, format="docs")
+    content = fix_slide_references(llm_content, slide_map)
 
     # Добавляем фронтматтер
     frontmatter = _make_frontmatter(aligned, cfg, filename)
@@ -211,10 +219,11 @@ def save_notes(
     docs_path.write_text(content, encoding="utf-8")
     print(f"   📄 Docs: {docs_path}")
 
-    # 4. Сохраняем в vault (Obsidian)
+    # 4. Сохраняем в vault (Obsidian) — свои относительные пути к слайдам
+    vault_content = frontmatter + fix_typography(fix_slide_references(llm_content, vault_map))
     vault_path = cfg.vault_dir / f"{filename}.md"
     vault_path.parent.mkdir(parents=True, exist_ok=True)
-    vault_path.write_text(content, encoding="utf-8")
+    vault_path.write_text(vault_content, encoding="utf-8")
     print(f"   📄 Vault: {vault_path}")
 
     return {"vault": vault_path, "docs": docs_path}
