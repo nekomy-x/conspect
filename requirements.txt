@@ -1,0 +1,21 @@
+# Распознавание речи (Apple Silicon GPU; на обычном CPU установите faster-whisper вместо этого)
+mlx-whisper>=0.4.0
+
+# LLM API (OpenAI-совместимый)
+openai>=1.30
+
+# HTTP и парсинг
+requests>=2.31
+lxml>=5.0
+beautifulsoup4>=4.12
+
+# Конфигурация и утилиты
+python-dotenv>=1.0
+tqdm>=4.66
+
+# Сайт из конспектов (MkDocs Material)
+mkdocs-material>=9.5
+pymdown-extensions>=10.8
+
+# Опционально (fallback для CPU без mlx):
+# faster-whisper>=1.0
