@@ -1,111 +1,147 @@
-# bbb-lectures 🎓
+# konspekt — ассистент для edu.vsu.ru (ВГУ Moodle) + Telegram
 
-**Пайплайн «запись BigBlueButton → красивый конспект».**
+Личный менеджер учёбы: следит за курсами Moodle, лекциями BigBlueButton,
+заданиями, расписание; прогоняет записи лекций через нейронку (Whisper + LLM)
+и выдаёт конспекты/презентации; пишет черновики лаб.
 
-Скачивает запись лекции с BBB (аудио + слайды), распознаёт речь через Whisper, передаёт всё нейросети (GPT-4o) — и на выходе получаются структурированные конспекты: Markdown для Obsidian + красивый HTML-сайт на MkDocs Material.
+## Что умеет
 
-## Что делает
+- **Слежка по курсам вкл/выкл**: `/watch` — меню с кнопками по каждому курсу
+  (👁 следим / 🚫 игнорируем). Нет предмета в расписании — выключил слежку,
+  бот больше не дёргает этот курс. `/unwatch <id>` — то же текстом.
+  По умолчанию все курсы под слежкой.
+- **Сессия Moodle по кукам** (`MOODLE_SESSION_COOKIE`), авто-keepalive раз в 20 мин;
+  при смерти сессии бот просит свежую куку командой `/session <кука>`.
+- **Сканер каждые N минут** (`SCAN_INTERVAL`): новые курсы, новые активности
+  (лекции BBB, задания, файлы, форумы) → уведомления в Telegram.
+- **Записи лекций → конспект автоматически**: как только запись появилась,
+  бот сам качает webcams.webm, делает Whisper-транскрипт, тянет слайды
+  SVG→PNG + тексты, LLM собирает конспект (с проверкой полноты) и
+  HTML-презентацию — и присылает всё в чат. **Готовый конспект не
+  переделывается** (идемпотентно); принудительно — `/reconspect <ссылка>`.
+- **Лекции BBB**: уведомление «скоро» за 15 мин; мониторинг появления кнопки
+  «Присоединиться» (раз в минуту с −10 до +40 мин) → кнопка-ссылка в ТГ.
+- **Задания (assign)**: `/analyze <url>` — разбор «что сделать»;
+  `/answer <url>` — готовый черновик + автопроверка. Напоминания 24ч/3ч/30м.
+- **Расписание**: текстом/фото/файлом — эвристика + LLM; утром сводка (7:00),
+  вечером «завтра пары + лечь до …» (21:00), за 1:30 до первой пары и за 15 мин.
+- **Напоминания**: `/remind 18:30 25.09 текст`; `/conspects` + `/getfile N` —
+  список готовых конспектов и выдача файлов.
 
-```
-BBB URL → Скачать ассеты → Транскрипция (Whisper) → Нейросеть (GPT-4o) → Конспект
-                                                                       ├─ Markdown (Obsidian)
-                                                                       └─ Сайт (MkDocs Material)
-```
-
-### Функции
-- **Скачивание** ассетов BBB: metadata, слайды (SVG+текст), видео, аудио
-- **Транскрипция**: mlx-whisper (Apple Silicon GPU) или faster-whisper (CPU)
-- **Генерация конспекта**: GPT-4o с интуитивным стилем (интуиция → формула → пример)
-- **Три формата вывода**: Obsidian Markdown, MkDocs Material сайт, PDF (опционально)
-- **Автоматическая обработка**: watcher следит за очередью ссылок
-
-## Быстрый старт
-
-### 1. Установка
+## Установка
 
 ```bash
-git clone <url> && cd bbb-lectures
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
+python3 -m venv .venv
+.venv/bin/pip install -e ".[media]"   # + whisper/yt-dlp
+# системное: ffmpeg, rsvg-convert (brew install ffmpeg librsvg)
 ```
 
-### 2. Конфигурация
+## Настройка
 
 ```bash
 cp .env.example .env
-# Отредактируйте .env: вставьте ключ OpenAI
+# заполнить: TELEGRAM_BOT_TOKEN, OWNER_CHAT_ID, MOODLE_SESSION_COOKIE, OPENAI_API_KEY
 ```
 
-Нужен API-ключ OpenAI (или совместимого провайдера):
-- [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+- Токен бота — у @BotFather.
+- Свой chat_id — напиши боту `/start`, он ответит id, впиши в `OWNER_CHAT_ID`.
+- Кука MoodleSession — из DevTools браузера (Cookie edu.vsu.ru).
+- Ключ OpenAI — API-ключ; можно OpenAI-совместимый `OPENAI_BASE_URL`.
 
-### 3. Запуск
+## Запуск
 
 ```bash
-# Обработать одну лекцию
-python main.py "https://bbb.edu.vsu.ru/playback/presentation/2.3/..."
-
-# Пересобрать сайт
-python main.py --build-site
-
-# Добавить в очередь
-echo "https://bbb.edu.vsu.ru/playback/..." >> queue.txt
-
-# Автообработка очереди
-python watch.py --once      # обработать и выйти
-python watch.py             # демон: проверяет каждые 60 сек
+.venv/bin/python -m konspekt run        # бот + планировщик
+.venv/bin/python -m konspekt scan       # одиночный скан Moodle
+.venv/bin/python -m konspekt courses    # список курсов
+.venv/bin/python -m konspekt test-ai    # проверка ИИ
 ```
 
-### 4. Просмотр результатов
+## Команды бота
+
+| Команда | Что делает |
+|---|---|
+| `/status` | состояние: сессия, курсы, записи, дедлайны |
+| `/courses` | список курсов |
+| `/deadlines` | задания и сроки |
+| `/assignments` | все лабы с состоянием |
+| `/recordings` | найденные записи |
+| `/schedule` | расписание на сегодня/завтра |
+| `/analyze <url>` | разбор задания |
+| `/answer <url>` | черновик ответа на задание |
+| `/todo` | менеджерская сводка: просрочка / сдать / лекции / пары |
+| `/plan` | план на день от ИИ по всем данным |
+| `/conspect <url>` | конспект записи (готовый не трогает) |
+| `/reconspect <url>` | переделать конспект заново |
+| `/conspects` | список готовых конспектов |
+| `/getfile N` | прислать конспект №N |
+| `/watch` | меню слежки по курсам (кнопки вкл/выкл) |
+| `/unwatch <id>` | снять курс со слежки |
+| `/remind 18:30 25.09 текст` | напоминание |
+| `/session <кука>` | обновить MoodleSession |
+| `/edit` | режим правки уведомлений |
+
+## Веб-интерфейс и дополнительные возможности
 
 ```bash
-# Obsidian / Typora / VS Code — откройте папку vault/
-# Сайт — откройте в браузере:
-python -m http.server -d site 8000
-# Затем: http://localhost:8000
+.venv/bin/python -m konspekt.web
 ```
 
-## Структура проекта
+Адрес и порт задаются через `WEB_URL` и `WEB_PORT`. Задайте собственный
+`WEB_PASSWORD` в локальном `.env` перед открытием веб-интерфейса наружу.
+Для PDF-отчётов и работы с таблицами установите `pip install -e ".[reports]"`.
 
+Модуль `autojoin.py` пробует открыть ссылку входа в BBB, когда конференция
+доступна и предмет совпал с расписанием. `live.py` повторяет HTTP-запросы
+во время лекции. Это не полноценный браузерный клиент BBB: постоянное
+присутствие и отметка посещения этим способом не подтверждены.
+
+## Локальные данные и настройки
+
+В репозитории публикуются код, статика интерфейса и пустой `.env.example`.
+Заполненный `.env`, базы, записи, конспекты, задания, чаты, куки, логи и
+резервные копии хранятся локально и исключены через `.gitignore`.
+В примерах MCP используются относительные пути; запускайте клиент из
+корня проекта или укажите свою рабочую папку в локальной конфигурации.
+ФИО и группу для отчётов передавайте при вызове `do_lab`.
+
+## Данные
+
+Всё в `data/`: `konspekt.db` (состояние), `conspects/` (артефакты:
+transcript.txt, slides/, conspect.md, presentation.html),
+`assignments/` (черновики), `.whisper_cache/`.
+
+## Ограничения (пока)
+
+- Кнопка «Присоединиться» на edu.vsu.ru появляется через JS — сканер ловит её
+  появление только при активном мониторинге окна ±10/+40 мин от начала.
+- Если лекция без записи webcams.webm — конспект не собрать.
+- `auth.py` поддерживает вход через стандартную форму Moodle по локальным
+  `MOODLE_USERNAME` / `MOODLE_PASSWORD`; для SSO может потребоваться кука.
+
+## MCP-серверы
+
+Проект экспортирует Moodle и конспекты как **универсальные MCP-сервисы**
+(стандарт Model Context Protocol) — их можно подключить к любому
+MCP-клиенту (Claude Desktop, Claude Code, агент и т.п.):
+
+```json
+// mcp_config.json (уже в репо)
+{
+  "mcpServers": {
+    "moodle":   { "command": ".venv/bin/python", "args": ["-m", "konspekt.mcp_server_moodle"], "cwd": "." },
+    "konspect": { "command": ".venv/bin/python", "args": ["-m", "konspekt.mcp_server_konspect"], "cwd": "." }
+  }
+}
 ```
-bbb-lectures/
-├── main.py           # CLI
-├── watch.py          # Watcher (очередь ссылок)
-├── config.py         # Конфигурация
-├── fetch.py          # Скачивание ассетов BBB
-├── extract.py        # ffmpeg + rsvg-convert + таймлайны
-├── transcribe.py     # mlx-whisper транскрипция
-├── align.py          # Привязка транскрипта к слайдам
-├── summarize.py      # Генерация конспекта (LLM)
-├── notes.py          # Форматирование Markdown
-├── site.py           # MkDocs Material сайт
-├── prompts/          # Промпты для LLM
-├── docs/             # Конспекты для сайта (auto-generated)
-├── vault/            # Markdown-конспекты (Obsidian)
-├── .env.example      # Шаблон конфигурации
-└── queue.txt         # Очередь ссылок
-```
 
-## Без LLM
+**moodle** (13 инструментов): health, courses, activities, assignments,
+read_page, meeting_status, recordings, watch_course, scan, submit_file
+(действие), check_submission, download, schedule.
 
-Если `LLM_API_KEY` не задан — скрипт сгенерирует «сырой» конспект:
-структуру слайдов с текстами и транскриптом, но без красивой обработки нейросетью.
+**konspect** (6): conspect_status, process_recording (запись→транскрипт→
+конспект→презентация, идемпотентно), recording_info, analyze_assignment,
+write_assignment_answer, conspect_file.
 
-## Moodle-ссылки (edu.vsu.ru)
-
-Ссылки на `edu.vsu.ru/mod/bigbluebuttonbn/` требуют авторизации.
-Для них нужно экспортировать куки браузера в формате Netscape:
-
-1. Установите расширение [Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
-2. Откройте `edu.vsu.ru` в браузере (войдите)
-3. Экспортируйте куки: правый клик → «Get cookies.txt LOCALLY»
-4. Сохраните как `cookies.txt` в корне проекта
-5. Укажите в `.env`: `MOODLE_COOKIES=./cookies.txt`
-
-## Системные требования
-
-- Python 3.10+
-- ffmpeg (аудио)
-- rsvg-convert (SVG → PNG слайды)
-- 7+ ГБ свободного места (модель Whisper medium = 1.5 ГБ)
-- Apple Silicon GPU — рекомендуется для быстрой транскрипции
+Telegram-агент ходит в те же функции (konspekt/mcp_bridge.py) — единая
+логика для бота и внешних клиентов.

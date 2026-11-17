@@ -1,7 +1,0 @@
-# Очередь на обработку (одна ссылка на строку)
-# Добавьте ссылку и запустите: python watch.py --once
-# Строки, начинающиеся с #, пропускаются.
-#
-# Примеры:
-# https://bbb.edu.vsu.ru/playback/presentation/2.3/90569f148cc7a423d03de1b6160f228278f581ba-1788795548480
-# https://edu.vsu.ru/mod/bigbluebuttonbn/view.php?id=1234567

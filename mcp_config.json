@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "moodle": {
+      "command": ".venv/bin/python",
+      "args": [
+        "-m",
+        "konspekt.mcp_server_moodle"
+      ],
+      "cwd": "."
+    },
+    "konspect": {
+      "command": ".venv/bin/python",
+      "args": [
+        "-m",
+        "konspekt.mcp_server_konspect"
+      ],
+      "cwd": "."
+    },
+    "system": {
+      "command": ".venv/bin/python",
+      "args": [
+        "-m",
+        "konspekt.mcp_server_system"
+      ],
+      "cwd": "."
+    }
+  }
+}

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Конспект</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<link rel="stylesheet" href="/static/styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23131211'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-style='italic' font-size='19' fill='%23d98e4a' text-anchor='middle'%3Eк%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<a class="skip-link" href="#content">К содержимому</a>
+
+<div class="app" id="app">
+
+  <!-- ═══ 1. РЕЙЛ НАВИГАЦИИ ═══ -->
+  <aside class="rail" id="rail" aria-label="Основная навигация">
+    <a class="brand" href="#/" title="Конспект — на главную">
+      <span class="brand-mark">к</span>
+      <span class="brand-name">Конспект</span>
+    </a>
+    <nav class="rail-nav">
+      <a href="#/" data-nav="home" title="Главная — g h">
+        <i class="ph ph-house" aria-hidden="true"></i>
+        <span class="rail-label">Главная</span>
+      </a>
+      <a href="#/conspects" data-nav="conspects" title="Библиотека конспектов — g k">
+        <i class="ph ph-book-open-text" aria-hidden="true"></i>
+        <span class="rail-label">Конспекты</span>
+      </a>
+      <a href="#/assignments" data-nav="assignments" title="Задания — g a">
+        <i class="ph ph-check-square" aria-hidden="true"></i>
+        <span class="rail-label">Задания</span>
+        <span class="nav-badge" id="badge-assignments" hidden></span>
+      </a>
+      <a href="#/schedule" data-nav="schedule" title="Расписание — g s">
+        <i class="ph ph-calendar-blank" aria-hidden="true"></i>
+        <span class="rail-label">Расписание</span>
+      </a>
+    </nav>
+    <div class="rail-foot">
+      <button class="rail-btn" id="rail-collapse" type="button" title="Свернуть панель (⌘B)">
+        <i class="ph ph-sidebar-simple" aria-hidden="true"></i>
+        <span class="rail-label">Свернуть</span>
+      </button>
+      <button class="rail-btn" id="help-btn" type="button" title="Горячие клавиши — ?">
+        <i class="ph ph-keyboard" aria-hidden="true"></i>
+        <span class="rail-label">Клавиши</span>
+      </button>
+      <button class="rail-btn" id="theme-toggle" type="button" title="Сменить тему">
+        <i class="ph ph-moon-stars" aria-hidden="true" id="theme-icon"></i>
+        <span class="rail-label" id="theme-label">Тёмная</span>
+      </button>
+      <a class="rail-btn" href="/logout" title="Выйти">
+        <i class="ph ph-sign-out" aria-hidden="true"></i>
+        <span class="rail-label">Выйти</span>
+      </a>
+    </div>
+  </aside>
+  <div class="pane-handle" data-pane="nav" role="separator" aria-orientation="vertical"
+       tabindex="0" aria-label="Ширина панели навигации" aria-valuemin="56" aria-valuemax="320" aria-valuenow="230"></div>
+
+  <!-- ═══ 2. ДЕРЕВО ТЕМ ═══ -->
+  <aside class="tree-pane" id="tree-pane" aria-label="Разделы, лекции и подразделы">
+    <div class="pane-head">
+      <div class="tree-search">
+        <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+        <input id="tree-filter" type="search" placeholder="Фильтр тем" autocomplete="off"
+               aria-label="Фильтр дерева тем">
+        <kbd>/</kbd>
+      </div>
+      <button class="icon-btn" id="tree-mode" type="button" title="Открывать один раздел за раз"
+              aria-label="Режим раскрытия разделов" aria-pressed="true">
+        <i class="ph ph-arrows-in-line-vertical" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="tree-scroll" id="tree-scroll">
+      <div id="tree-continue"></div>
+      <div class="tree" id="tree" role="tree" aria-label="Темы"></div>
+    </div>
+    <div class="pane-foot">
+      <a class="pane-foot-link" href="#/conspects">
+        <i class="ph ph-squares-four" aria-hidden="true"></i>
+        <span>Вся библиотека</span>
+      </a>
+    </div>
+  </aside>
+  <div class="pane-handle" data-pane="tree" role="separator" aria-orientation="vertical"
+       tabindex="0" aria-label="Ширина панели тем" aria-valuemin="0" aria-valuemax="460" aria-valuenow="300"></div>
+
+  <!-- ═══ 3. ДОКУМЕНТ ═══ -->
+  <main class="main" id="main">
+    <header class="topbar">
+      <button class="menu-btn" id="menu-btn" type="button" aria-label="Меню">
+        <i class="ph ph-list" aria-hidden="true"></i>
+      </button>
+      <button class="crumb-back" id="crumb-back" type="button" aria-label="Назад" hidden>
+        <i class="ph ph-caret-left" aria-hidden="true"></i>
+      </button>
+      <button class="icon-btn tree-toggle" id="tree-toggle" type="button" title="Дерево тем (⌘B)"
+              aria-label="Показать или скрыть дерево тем" aria-pressed="true">
+        <i class="ph ph-tree-structure" aria-hidden="true"></i>
+      </button>
+      <div class="crumbs" id="crumbs"></div>
+      <button class="search-trigger" id="search-trigger" type="button">
+        <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+        <span>Поиск и команды</span>
+        <kbd>⌘K</kbd>
+      </button>
+      <div class="topbar-spacer"></div>
+      <button class="ai-fab" id="ai-fab" type="button" title="ИИ-ассистент (⌘I)"
+              aria-label="Открыть ИИ-ассистента" aria-expanded="false">
+        <span class="ai-dot"></span>
+        <span class="ai-fab-text">ИИ</span>
+      </button>
+    </header>
+    <div class="content" id="content" tabindex="-1"></div>
+  </main>
+  <div class="pane-handle" data-pane="ai" role="separator" aria-orientation="vertical"
+       tabindex="0" aria-label="Ширина панели ИИ" aria-valuemin="0" aria-valuemax="720" aria-valuenow="400"></div>
+
+  <!-- ═══ 4. ИИ-ПАНЕЛЬ ═══ -->
+  <aside class="ai-pane" id="ai-pane" aria-label="ИИ-ассистент">
+    <div class="ai-head">
+      <span class="ai-dot" aria-hidden="true"></span>
+      <button class="ai-ctx" id="ai-ctx" type="button" aria-haspopup="listbox" aria-expanded="false">
+        <span class="ai-ctx-name" id="ai-ctx-name">Вся учёба</span>
+        <i class="ph ph-caret-down" aria-hidden="true"></i>
+      </button>
+      <button class="icon-btn" id="ai-new" type="button" title="Новый чат в этом контексте" aria-label="Новый чат">
+        <i class="ph ph-plus" aria-hidden="true"></i>
+      </button>
+      <button class="icon-btn ai-sheet-close" id="ai-sheet-close" type="button" aria-label="Закрыть ИИ-панель">
+        <i class="ph ph-caret-down" aria-hidden="true"></i>
+      </button>
+      <button class="icon-btn ai-pane-hide" id="ai-hide" type="button" title="Свернуть панель (⌘J)" aria-label="Свернуть ИИ-панель">
+        <i class="ph ph-sidebar-simple-flip" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="ai-modes" role="tablist" aria-label="Режим ИИ-панели">
+      <button class="ai-mode" data-ai-mode="chat" role="tab" aria-selected="true"
+              title="Ассистент — отвечает по материалу лекций">
+        <i class="ph ph-chat-circle-dots" aria-hidden="true"></i><span>Ассистент</span>
+      </button>
+      <button class="ai-mode" data-ai-mode="agent" role="tab" aria-selected="false"
+              title="Агент — сам выполняет задачи и показывает каждый шаг">
+        <i class="ph ph-robot" aria-hidden="true"></i><span>Агент</span>
+      </button>
+    </div>
+    <div class="ai-chat" id="ai-chat" aria-live="polite" aria-label="Диалог с ИИ"></div>
+    <div class="ai-agent" id="ai-agent" aria-live="polite" aria-label="Работа агента" hidden></div>
+    <div class="ai-quick" id="ai-quick"></div>
+    <form class="ai-input" id="ai-form">
+      <input id="ai-input" type="text" placeholder="Спроси что-нибудь…" autocomplete="off"
+             aria-label="Вопрос к ИИ">
+      <button class="ai-send" id="ai-stop" type="button" hidden title="Остановить" aria-label="Остановить генерацию">
+        <i class="ph ph-stop" aria-hidden="true"></i>
+      </button>
+      <button class="ai-send" type="submit" aria-label="Отправить">
+        <i class="ph ph-arrow-up" aria-hidden="true"></i>
+      </button>
+    </form>
+  </aside>
+
+  <!-- свёрнутая ИИ-полоса -->
+  <button class="ai-bar" id="ai-bar" type="button" hidden title="Развернуть ИИ-ассистента (⌘J)"
+          aria-label="Развернуть ИИ-ассистента">
+    <span class="ai-dot" aria-hidden="true"></span>
+    <span class="ai-bar-text">ИИ-ассистент</span>
+    <span class="ai-bar-dots" id="ai-bar-dots" hidden>готовит ответ…</span>
+  </button>
+
+  <!-- меню контекста ИИ -->
+  <div class="ai-ctx-menu" id="ai-ctx-menu" role="listbox" aria-label="Контекст ИИ" hidden></div>
+
+  <div class="backdrop" id="backdrop" hidden></div>
+</div>
+
+<!-- мобильный таббар -->
+<nav class="tabbar" id="tabbar" aria-label="Основная навигация">
+  <a href="#/" data-nav="home"><i class="ph ph-house" aria-hidden="true"></i><span>Главная</span></a>
+  <a href="#/conspects" data-nav="conspects"><i class="ph ph-book-open-text" aria-hidden="true"></i><span>Темы</span></a>
+  <a href="#/assignments" data-nav="assignments"><i class="ph ph-check-square" aria-hidden="true"></i><span>Задания</span></a>
+  <a href="#/schedule" data-nav="schedule"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>Пары</span></a>
+</nav>
+
+<!-- командная палитра -->
+<div class="cmdk-overlay" id="cmdk-overlay" hidden>
+  <div class="cmdk" role="dialog" aria-modal="true" aria-label="Поиск и команды">
+    <div class="cmdk-input-wrap">
+      <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+      <input id="cmdk-input" type="text" placeholder="Конспекты, подразделы, задания, команды…"
+             autocomplete="off" role="combobox" aria-expanded="true" aria-controls="cmdk-results"
+             aria-activedescendant="">
+      <kbd>esc</kbd>
+    </div>
+    <div class="cmdk-results" id="cmdk-results" role="listbox" aria-label="Результаты"></div>
+    <div class="cmdk-foot" id="cmdk-foot"></div>
+  </div>
+</div>
+
+<!-- справка по клавишам -->
+<div class="modal-overlay" id="help-overlay" hidden>
+  <div class="modal help-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <button class="icon-btn modal-close" id="help-close" type="button" aria-label="Закрыть">
+      <i class="ph ph-x" aria-hidden="true"></i>
+    </button>
+    <h2 id="help-title" class="help-title">Горячие клавиши</h2>
+    <div class="help-grid" id="help-grid"></div>
+  </div>
+</div>
+
+<!-- выделение → ИИ -->
+<div class="ai-popover" id="ai-popover" hidden role="dialog" aria-label="Действия с выделенным текстом">
+  <div class="ai-popover-head">Выделенный фрагмент</div>
+  <div class="ai-popover-actions">
+    <button data-mode="explain"><i class="ph ph-chat-circle-text"></i> Пояснить<span>↵</span></button>
+    <button data-mode="simple"><i class="ph ph-baby"></i> Простыми словами</button>
+    <button data-mode="exam"><i class="ph ph-graduation-cap"></i> Вопросы к экзамену</button>
+    <button data-mode="flash"><i class="ph ph-cards"></i> Флеш-карточки</button>
+    <button data-mode="copy"><i class="ph ph-clipboard-text"></i> Копировать</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay" hidden>
+  <div class="modal" id="modal" role="dialog" aria-modal="true"></div>
+</div>
+
+<div class="toast-wrap" id="toast-wrap" aria-live="polite" aria-atomic="false"></div>
+
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

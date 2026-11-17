@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "konspekt"
+version = "0.1.0"
+description = "Moodle→Telegram ассистент: сканер курсов/записей/заданий, конспекты лекций на нейронке, расписание"
+requires-python = ">=3.12"
+dependencies = [
+    "aiogram>=3.15",
+    "apscheduler>=3.10,<4",
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+    "beautifulsoup4>=4.12",
+    "PyYAML>=6.0",
+    "pdfplumber>=0.11",
+    "PyMuPDF>=1.24",
+    "openai>=1.40",
+    "starlette>=0.41",
+    "uvicorn>=0.30",
+    "mcp>=2.2",
+]
+
+[project.optional-dependencies]
+media = [
+    "openai-whisper>=20231117",
+    "yt-dlp>=2024.4.9",
+]
+
+reports = [
+    "openpyxl>=3.1",
+    "weasyprint>=62",
+]
+
+[tool.setuptools.packages.find]
+include = ["konspekt*"]
+
+[tool.setuptools.package-data]
+konspekt = ["webstatic/*.html", "webstatic/*.css", "webstatic/*.js", "webstatic/js/*.js", "webstatic/js/views/*.js"]
